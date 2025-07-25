@@ -1,37 +1,41 @@
 import streamlit as st
-from deep_translator import GoogleTranslator
+from googletrans import Translator, LANGUAGES
 from gtts import gTTS
 from io import BytesIO
-import base64
 
 # ---------- Page Setup ----------
 st.set_page_config(
-    page_title="Tech Translator - Worldwide",
+    page_title="Tech Translator - Worldwide", 
     page_icon="🌍",
     layout="centered",
     initial_sidebar_state="expanded"
 )
 
+# Initialize translator
+translator = Translator()
+
+# ---------- Session State Initialization ----------
+if "text_input" not in st.session_state:
+    st.session_state.text_input = ""
+
 # ---------- Sidebar Settings ----------
 st.sidebar.header("🌍 Translation Settings")
 
-# Supported languages from Deep Translator
-LANGUAGES = GoogleTranslator.get_supported_languages(as_dict=True)
-language_names = list(LANGUAGES.keys())
-language_codes = list(LANGUAGES.values())
+# Language selection
+language_names = list(LANGUAGES.values())
+language_codes = list(LANGUAGES.keys())
 
-# Prioritize popular languages
 popular_langs = ['english', 'spanish', 'french', 'german', 'chinese', 'japanese', 'arabic', 'hindi', 'portuguese', 'russian']
 popular_indices = [language_names.index(lang) for lang in popular_langs if lang in language_names]
 other_indices = [i for i in range(len(language_names)) if i not in popular_indices]
 sorted_names = [language_names[i] for i in popular_indices] + [language_names[i] for i in other_indices]
 
 dest_lang_name = st.sidebar.selectbox(
-    "🎯 Translate to:",
-    sorted_names,
+    "🎯 Translate to:", 
+    sorted_names, 
     index=sorted_names.index("spanish")
 )
-dest_lang_code = LANGUAGES[dest_lang_name]
+dest_lang_code = language_codes[language_names.index(dest_lang_name)]
 
 # Font size selector
 font_size = st.sidebar.slider("📝 Font size for translated text", min_value=14, max_value=36, value=20)
@@ -43,6 +47,7 @@ audio_speed = st.sidebar.slider("🔊 Audio speed", min_value=0.5, max_value=2.0
 custom_css = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 html, body, [data-testid="stApp"] {{
     height: 100%;
     margin: 0;
@@ -51,6 +56,7 @@ html, body, [data-testid="stApp"] {{
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     background-attachment: fixed;
 }}
+
 [data-testid="stApp"]::before {{
     content: "";
     position: absolute;
@@ -59,13 +65,16 @@ html, body, [data-testid="stApp"] {{
     background: rgba(0, 0, 0, 0.2);
     z-index: -1;
 }}
+
 [data-testid="stSidebar"] {{
     background: linear-gradient(180deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%) !important;
     backdrop-filter: blur(10px);
 }}
+
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {{
     color: white !important;
 }}
+
 .main .block-container {{
     padding: 2rem 1rem;
     background: rgba(255, 255, 255, 0.1);
@@ -75,6 +84,7 @@ html, body, [data-testid="stApp"] {{
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     margin: 2rem auto;
 }}
+
 .translated-text {{
     font-size: {font_size}px;
     font-weight: 600;
@@ -88,6 +98,7 @@ html, body, [data-testid="stApp"] {{
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
     line-height: 1.6;
 }}
+
 .stButton > button {{
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -98,22 +109,26 @@ html, body, [data-testid="stApp"] {{
     transition: all 0.3s ease;
     box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
 }}
+
 .stButton > button:hover {{
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }}
+
 .stTextArea textarea {{
     background: rgba(255, 255, 255, 0.9);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 10px;
     font-size: 16px;
 }}
+
 .stSuccess, .stInfo {{
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.2);
 }}
+
 h1 {{
     color: white !important;
     text-align: center;
@@ -133,29 +148,35 @@ st.markdown("**Translate instantly to 100+ languages with audio support**")
 col1, col2 = st.columns([3, 1])
 
 with col1:
-    text_to_translate = st.text_area(
-        "✍️ Enter text to translate (auto-detect language):",
+    st.session_state.text_input = st.text_area(
+        "✍️ Enter text to translate (auto-detect language):", 
+        value=st.session_state.text_input,
         height=150,
+        key="text_input_area",
         placeholder="Type or paste your text here..."
     )
 
 with col2:
     st.markdown("### 🎯 Quick Actions")
     if st.button("🔄 Clear Text"):
+        st.session_state.text_input = ""
+        st.rerun()
+    
+    if st.button("📋 Sample Text"):
+        st.session_state.text_input = "Hello! This is a sample text for translation. Technology is connecting the world."
         st.rerun()
 
-    if st.button("📋 Sample Text"):
-        text_to_translate = "Hello! This is a sample text for translation. Technology is connecting the world."
-
 # ---------- Translation Button ----------
+text_to_translate = st.session_state.text_input
+
 if st.button("🚀 Translate Now", type="primary"):
     if text_to_translate.strip():
         try:
             with st.spinner("🔄 Translating and generating audio..."):
-                translated_text = GoogleTranslator(source='auto', target=dest_lang_code).translate(text_to_translate)
-                detected_lang = "Auto-detected"
+                translated = translator.translate(text_to_translate, dest=dest_lang_code)
+                translated_text = translated.text
+                detected_lang = LANGUAGES.get(translated.src, 'Unknown').title()
 
-                # Display results
                 col1, col2 = st.columns([2, 1])
                 with col1:
                     st.info(f"🔍 **Detected language:** {detected_lang}")
@@ -177,7 +198,6 @@ if st.button("🚀 Translate Now", type="primary"):
                     st.audio(audio_bytes.read(), format="audio/mp3")
                     audio_bytes.seek(0)
 
-                    # Download Options
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         st.download_button(
@@ -186,18 +206,21 @@ if st.button("🚀 Translate Now", type="primary"):
                             file_name=f"translation_{dest_lang_code}.mp3",
                             mime="audio/mp3"
                         )
+
                     with col2:
-                        text_download = f"Original: {text_to_translate}\n\nTranslated ({dest_lang_name.title()}): {translated_text}"
+                        text_download = f"Original ({detected_lang}): {text_to_translate}\n\nTranslated ({dest_lang_name.title()}): {translated_text}"
                         st.download_button(
                             label="📄 Download Text",
                             data=text_download,
                             file_name=f"translation_{dest_lang_code}.txt",
                             mime="text/plain"
                         )
+
                     with col3:
                         if st.button("🔄 Translate Back"):
-                            reverse_text = GoogleTranslator(source='auto', target='en').translate(translated_text)
-                            st.info(f"**Reverse translation:** {reverse_text}")
+                            reverse_translated = translator.translate(translated_text, dest=translated.src)
+                            st.info(f"**Reverse translation:** {reverse_translated.text}")
+
                 except Exception as audio_error:
                     st.warning("⚠️ Audio generation failed, but translation was successful!")
                     st.error(f"Audio error: {str(audio_error)}")
@@ -209,6 +232,18 @@ if st.button("🚀 Translate Now", type="primary"):
     else:
         st.warning("⚠️ Please enter some text to translate.")
 
-# ---------- Footer ----------
+# ---------- Footer Info ----------
 st.markdown("---")
-col
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.markdown("### 🌟 Features")
+    st.markdown("• 100+ Languages\n• Audio Playback\n• Auto-Detection\n• Download Options")
+
+with col2:
+    st.markdown("### ⚡ Performance")
+    st.markdown("• Real-time Translation\n• High Accuracy\n• Fast Processing\n• Mobile Friendly")
+
+with col3:
+    st.markdown("### 🔧 Tech Stack")
+    st.markdown("• Google Translate API\n• Text-to-Speech\n• Streamlit Framework\n• Python Backend")
