@@ -24,7 +24,8 @@ st.sidebar.header("🌍 Translation Settings")
 # GoogleTranslator.get_supported_languages(as_dict=True) returns {lang_name: lang_code}
 # GoogleTranslator.get_supported_languages(as_dict=False) returns [lang_code, ...]
 # We need names for display and codes for translation.
-supported_langs_dict = GoogleTranslator.get_supported_languages(as_dict=True)
+translator_instance = GoogleTranslator() # Create an instance
+supported_langs_dict = translator_instance.get_supported_languages(as_dict=True)
 language_names = list(supported_langs_dict.keys())
 language_codes = list(supported_langs_dict.values())
 
