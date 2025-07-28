@@ -208,16 +208,6 @@ if st.button("🚀 Translate Now", type="primary"):
                 except Exception:
                     detected_lang_name = "Unknown" # Fallback if detection fails
 
-                # Display results
-                col1, col2 = st.columns([2, 1])
-
-                with col1:
-                    st.info(f"🔍 **Detected language:** {detected_lang_name.title()}")
-
-                with col2:
-                    confidence = "High" if len(st.session_state.text_to_translate) > 10 else "Medium"
-                    st.success(f"✅ **Confidence:** {confidence}")
-
                 st.success("🎉 **Translation Complete:**")
                 st.markdown(f"<div class='translated-text'>{translated_text}</div>", unsafe_allow_html=True)
 
