@@ -16,21 +16,21 @@ st.set_page_config(
 if 'text_to_translate' not in st.session_state:
     st.session_state.text_to_translate = ""
 if 'mode' not in st.session_state:
-    st.session_state.mode = "Light Mode"
+    st.session_state.mode = "dark"  # default mode
 
 # ---------- Sidebar Settings ----------
 st.sidebar.header("🌍 Translation Settings")
 
 # Mode toggle
-mode = st.sidebar.radio("Choose Theme Mode", ["Light Mode", "Dark Mode"], index=0 if st.session_state.mode == "Light Mode" else 1)
+mode = st.sidebar.radio("🌓 Select Mode:", options=["dark", "light"], index=0 if st.session_state.mode == "dark" else 1)
 st.session_state.mode = mode
 
 # Get supported languages
 translator_instance = GoogleTranslator()
 supported_langs_dict = translator_instance.get_supported_languages(as_dict=True)
 language_names = list(supported_langs_dict.keys())
+language_codes = list(supported_langs_dict.values())
 
-# Popular languages
 popular_langs = ['english', 'spanish', 'french', 'german', 'chinese (simplified)', 'japanese', 'arabic', 'hindi', 'portuguese', 'russian']
 popular_langs_filtered = [lang for lang in popular_langs if lang in language_names]
 popular_indices = [language_names.index(lang) for lang in popular_langs_filtered]
@@ -47,7 +47,7 @@ dest_lang_code = supported_langs_dict[dest_lang_name]
 font_size = st.sidebar.slider("📝 Font size for translated text", min_value=14, max_value=36, value=20)
 audio_speed = st.sidebar.slider("🔊 Audio speed", min_value=0.5, max_value=2.0, value=1.0, step=0.1)
 
-# ---------- CSS for Light and Dark Modes ----------
+# ---------- CSS Styles for Light and Dark Mode ----------
 light_mode_css = f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -68,6 +68,16 @@ html, body, [data-testid="stApp"] {{
 
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, label, div, span {{
     color: #111 !important;
+}}
+
+[data-testid="stSidebar"] select, 
+[data-testid="stSidebar"] option {{
+    background-color: #fff !important;
+    color: #111 !important;
+    font-weight: 600;
+    border-radius: 8px;
+    border: 1px solid #ccc !important;
+    padding: 0.3rem 0.5rem;
 }}
 
 .stTextArea textarea {{
@@ -116,7 +126,6 @@ h1 {{
     border: 1px solid #a5b4fc;
     color: #1e40af !important;
 }}
-
 </style>
 """
 
@@ -140,6 +149,16 @@ html, body, [data-testid="stApp"] {{
 
 [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3, label, div, span {{
     color: #eee !important;
+}}
+
+[data-testid="stSidebar"] select,
+[data-testid="stSidebar"] option {{
+    background-color: rgba(255,255,255,0.1) !important;
+    color: #eee !important;
+    font-weight: 600;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    padding: 0.3rem 0.5rem;
 }}
 
 .stTextArea textarea {{
@@ -195,10 +214,11 @@ h1 {{
 </style>
 """
 
-if mode == "Dark Mode":
-    st.markdown(dark_mode_css, unsafe_allow_html=True)
-else:
+# Apply CSS based on mode
+if mode == "light":
     st.markdown(light_mode_css, unsafe_allow_html=True)
+else:
+    st.markdown(dark_mode_css, unsafe_allow_html=True)
 
 # ---------- App Title ----------
 st.title("🌍 Tech Translator - Worldwide")
@@ -222,10 +242,8 @@ with col2:
         st.experimental_rerun()
 
     if st.button("📋 Sample Text"):
-        st.session_state.text_to_translate = (
-            "Hello! This is a sample text for translation. Technology is connecting the world."
-        )
-        st.rerun()
+        st.session_state.text_to_translate = "Hello! This is a sample text for translation. Technology is connecting the world."
+        st.experimental_rerun()
 
 # ---------- Translation Button ----------
 if st.button("🚀 Translate Now", type="primary"):
@@ -240,16 +258,14 @@ if st.button("🚀 Translate Now", type="primary"):
                     detected_lang_code = GoogleTranslator(source='auto', target=dest_lang_code).detect(
                         st.session_state.text_to_translate
                     )
-                    detected_lang_name = next(
-                        (name for name, code in supported_langs_dict.items() if code == detected_lang_code), "Unknown"
-                    )
+                    detected_lang_name = next((name for name, code in supported_langs_dict.items() if code == detected_lang_code), 'Unknown')
                 except Exception:
                     detected_lang_name = "Unknown"
 
                 st.success("🎉 **Translation Complete:**")
                 st.markdown(f"<div class='translated-text'>{translated_text}</div>", unsafe_allow_html=True)
 
-                # Generate audio
+                # Audio generation
                 try:
                     tts = gTTS(text=translated_text, lang=dest_lang_code, slow=(audio_speed < 1.0))
                     audio_bytes = BytesIO()
@@ -260,29 +276,24 @@ if st.button("🚀 Translate Now", type="primary"):
                     st.audio(audio_bytes.read(), format="audio/mp3")
 
                     audio_bytes.seek(0)
-                    col1, col2, col3 = st.columns(3)
 
-                    with col1:
+                    col1a, col2a, col3a = st.columns(3)
+                    with col1a:
                         st.download_button(
                             label="📥 Download Audio (MP3)",
                             data=audio_bytes,
                             file_name=f"translation_{dest_lang_code}.mp3",
                             mime="audio/mp3"
                         )
-
-                    with col2:
-                        text_download = (
-                            f"Original ({detected_lang_name.title()}): {st.session_state.text_to_translate}\n\n"
-                            f"Translated ({dest_lang_name.title()}): {translated_text}"
-                        )
+                    with col2a:
+                        text_download = f"Original ({detected_lang_name.title()}): {st.session_state.text_to_translate}\n\nTranslated ({dest_lang_name.title()}): {translated_text}"
                         st.download_button(
                             label="📄 Download Text",
                             data=text_download,
                             file_name=f"translation_{dest_lang_code}.txt",
                             mime="text/plain"
                         )
-
-                    with col3:
+                    with col3a:
                         if st.button("🔄 Translate Back"):
                             reverse_translated_text = GoogleTranslator(source='auto', target=detected_lang_code).translate(
                                 translated_text
@@ -300,10 +311,18 @@ if st.button("🚀 Translate Now", type="primary"):
     else:
         st.warning("⚠️ Please enter some text to translate.")
 
-# ---------- Footer ----------
-st.markdown("""
----
-<div style="text-align:center; font-size:0.9em; color: gray;">
-  Created by YourName &nbsp;|&nbsp; Powered by Deep Translator & Google TTS &nbsp;|&nbsp; 2025
-</div>
-""", unsafe_allow_html=True)
+# ---------- Footer Info ----------
+st.markdown("---")
+col1f, col2f, col3f = st.columns(3)
+
+with col1f:
+    st.markdown("### 🌟 Features")
+    st.markdown("• 100+ Languages\n• Audio Playback\n• Auto-Detection\n• Download Options")
+
+with col2f:
+    st.markdown("### ⚡ Performance")
+    st.markdown("• Real-time Translation\n• High Accuracy\n• Fast Processing\n• Mobile Friendly")
+
+with col3f:
+    st.markdown("### 🔧 Tech Stack")
+    st.markdown("• Google Translate (via deep_translator)\n• Text-to-Speech\n• Streamlit Framework\n• Python Backend")
