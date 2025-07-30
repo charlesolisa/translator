@@ -1,206 +1,172 @@
 import streamlit as st
+from datetime import datetime
 from deep_translator import GoogleTranslator
 from gtts import gTTS
-import os
 import uuid
+import os
 import json
-import hashlib
-from datetime import datetime, timedelta
 
-USER_DATA_FILE = "users.json"
-
-# -------------------- User Handling --------------------
-def load_users():
-    if not os.path.exists(USER_DATA_FILE):
-        with open(USER_DATA_FILE, "w") as f:
-            json.dump({}, f)
-    with open(USER_DATA_FILE, "r") as f:
-        return json.load(f)
-
-def save_users(users):
-    with open(USER_DATA_FILE, "w") as f:
-        json.dump(users, f)
-
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
-users = load_users()
-
-# -------------------- Session Defaults --------------------
-if "font_size" not in st.session_state:
-    st.session_state.font_size = 16
-
-if "font_color" not in st.session_state:
-    st.session_state.font_color = "#333333"
-
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.username = None
-    st.session_state.role = None
-    st.session_state.login_time = None
-
-# -------------------- Language Options --------------------
+# ----------- Constants -----------
 language_options = {
     'English': 'en',
     'French': 'fr',
     'Spanish': 'es',
     'German': 'de',
     'Arabic': 'ar',
-    'Chinese (Simplified)': 'zh-CN'
+    'Chinese (Simplified)': 'zh-CN',
+    'Hindi': 'hi',
+    'Russian': 'ru',
 }
 
-# -------------------- Dynamic Styles --------------------
-def set_styles():
-    font_size = st.session_state.get("font_size", 16)
-    font_color = st.session_state.get("font_color", "#333333")
+CHAT_FILE = "chat_data.json"
 
-    st.markdown(f"""
-    <style>
-    html, body, [class*="css"] {{
-        font-family: 'Poppins', sans-serif;
-        font-size: {font_size}px;
-        color: {font_color};
-    }}
+# ----------- Load / Save Chat Data -----------
+def load_chat():
+    if not os.path.exists(CHAT_FILE):
+        with open(CHAT_FILE, "w") as f:
+            json.dump({}, f)
+    with open(CHAT_FILE, "r") as f:
+        return json.load(f)
 
-    .stApp {{
-        background-color: #f4f6f7;
-    }}
+def save_chat(chat_data):
+    with open(CHAT_FILE, "w") as f:
+        json.dump(chat_data, f)
 
-    .white-box {{
-        background-color: white;
-        padding: 25px;
-        border-radius: 15px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        margin: 20px 0;
-    }}
+# ----------- Translate and TTS -----------
+def translate_text(text, target_lang):
+    try:
+        return GoogleTranslator(source='auto', target=target_lang).translate(text)
+    except Exception:
+        return text
 
-    .even-box {{
-        background-color: #d0f0c0;
-        padding: 10px;
-        border-left: 5px solid #4caf50;
-        margin-bottom: 10px;
-        border-radius: 10px;
-    }}
+def generate_tts(text, lang_code):
+    try:
+        tts = gTTS(text=text, lang=lang_code)
+        filename = f"tts_{uuid.uuid4()}.mp3"
+        tts.save(filename)
+        audio = open(filename, "rb").read()
+        os.remove(filename)
+        return audio
+    except Exception:
+        return None
 
-    .odd-box {{
-        background-color: #ffcccb;
-        padding: 10px;
-        border-left: 5px solid #e53935;
-        margin-bottom: 10px;
-        border-radius: 10px;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+# ----------- UI Styles for Dark & Light Mode -----------
+st.markdown("""
+<style>
+/* Make chat messages text light for visibility in dark mode */
+p {
+    color: #eee !important;
+    font-family: 'Poppins', sans-serif;
+    font-size: 16px;
+}
 
-# -------------------- Sidebar Settings --------------------
-def settings_panel():
-    st.sidebar.markdown("## ⚙️ Settings")
-    st.session_state.font_size = st.sidebar.slider("Font Size", 12, 30, st.session_state.font_size)
-    st.session_state.font_color = st.sidebar.color_picker("Font Color", st.session_state.font_color)
+/* Transparent background for markdown containers */
+[data-testid="stMarkdownContainer"] {
+    background-color: transparent !important;
+}
 
-# -------------------- Auth Pages --------------------
-def register_page():
-    st.markdown("<div class='white-box'><h2>📝 Register</h2></div>", unsafe_allow_html=True)
-    new_username = st.text_input("Choose a username", max_chars=20)
-    new_password = st.text_input("Choose a password", type="password")
-    if st.button("Register"):
-        if new_username in users:
-            st.warning("Username already exists.")
-        elif not new_username or not new_password:
-            st.warning("All fields required.")
-        elif not new_username.isalpha():
-            st.error("Username should only contain letters.")
-        else:
-            users[new_username] = {
-                "password": hash_password(new_password),
-                "role": "user"
-            }
-            save_users(users)
-            st.success("✅ Registration successful! You can now log in.")
+/* Link color */
+a {
+    color: #82aaff !important;
+}
 
-def login_page():
-    st.markdown("<div class='white-box'><h1>🔐 Login to Continue</h1></div>", unsafe_allow_html=True)
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if username in users and users[username]["password"] == hash_password(password):
-            st.session_state.logged_in = True
-            st.session_state.username = username
-            st.session_state.role = users[username].get("role", "user")
-            st.session_state.login_time = datetime.now().isoformat()
-            st.success(f"✅ Welcome back, {username.title()}!")
-            st.rerun()
-        else:
-            st.error("Invalid credentials.")
+/* Header styling */
+.header {
+    background-color: #4CAF50;
+    padding: 20px;
+    border-radius: 10px;
+    color: white;
+    text-align: center;
+    font-family: 'Poppins', sans-serif;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
 
-def logout():
-    for key in ['logged_in', 'username', 'role', 'login_time']:
-        st.session_state.pop(key, None)
-    st.rerun()
+/* Sidebar dark background and text color */
+.stSidebar {
+    background-color: #222 !important;
+    color: #eee !important;
+}
 
-# -------------------- Main Feature --------------------
-def even_odd_app():
-    name = st.text_input("Enter your name")
-    num = st.number_input("Enter a number", step=1, format="%i")
-    selected_language = st.selectbox("Translate to", list(language_options.keys()))
+/* Sidebar widget text color */
+.stSidebar .css-1d391kg {
+    color: #eee !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
-    if st.button("🚀 Check & Translate"):
-        if not name or not name.isalpha():
-            st.warning("Please enter a valid name.")
-            return
+# ----------- UI Header -----------
+st.markdown('<div class="header"><h2>💬 Multilingual Private Chat</h2></div>', unsafe_allow_html=True)
 
-        result = f"{name}, {num} is an even number 💯" if num % 2 == 0 else f"{name}, {num} is an odd number ✌️"
-        box_class = "even-box" if num % 2 == 0 else "odd-box"
-        st.markdown(f"<div class='{box_class}'><strong>{result}</strong></div>", unsafe_allow_html=True)
+# ----------- Username Setup -----------
+if 'username' not in st.session_state:
+    username = st.text_input("Enter your name to join", max_chars=20)
+    if st.button("Join") and username.strip():
+        st.session_state.username = username.strip()
+        st.experimental_rerun()
+    st.stop()
 
-        lang_code = language_options[selected_language]
-        try:
-            translated = GoogleTranslator(source='auto', target=lang_code).translate(result)
-            st.markdown(f"🌍 <b>{selected_language}:</b> {translated}", unsafe_allow_html=True)
+username = st.session_state.username
+st.sidebar.markdown(f"👤 Logged in as: `{username}`")
 
-            with st.spinner("🔊 Generating audio..."):
-                tts = gTTS(text=translated, lang=lang_code)
-                filename = f"{uuid.uuid4()}.mp3"
-                tts.save(filename)
-                audio_data = open(filename, 'rb').read()
-                st.audio(audio_data, format='audio/mp3')
-                os.remove(filename)
+# ----------- Language Selection -----------
+user_lang_name = st.sidebar.selectbox("Your preferred language", list(language_options.keys()))
+user_lang_code = language_options[user_lang_name]
 
-        except Exception as e:
-            st.error(f"Translation/audio failed: {e}")
+# ----------- Load Chat Data -----------
+chat_data = load_chat()
 
-# -------------------- Main App --------------------
-def main_app():
-    settings_panel()  # show sidebar settings
+# ----------- Get all users -----------
+all_users = set()
+for pair in chat_data:
+    all_users.update(pair.split('|'))
+all_users.discard(username)
 
-    st.markdown(f"""
-    <div class='white-box'>
-        <h1>👋 Hello, {st.session_state.username.title()}!</h1>
-        <p>Welcome to the <b>Even & Odd Checker</b> 🌟</p>
-    </div>
-    """, unsafe_allow_html=True)
+chat_partner = st.sidebar.selectbox("💬 Chat with", sorted(all_users) if all_users else ["(Waiting for others...)"])
 
-    even_odd_app()
+if chat_partner == "(Waiting for others...)":
+    st.info("No one else is online yet.")
+    st.stop()
 
-    st.markdown("---")
-    if st.button("🔒 Logout"):
-        logout()
+# ----------- Chat Key -----------
+def chat_key(user1, user2):
+    return "|".join(sorted([user1, user2]))
 
-# -------------------- Run App --------------------
-set_styles()
+key = chat_key(username, chat_partner)
+if key not in chat_data:
+    chat_data[key] = []
 
-# Session timeout after 30 minutes
-if st.session_state.get("login_time"):
-    login_time = datetime.fromisoformat(st.session_state["login_time"])
-    if datetime.now() - login_time > timedelta(minutes=30):
-        st.warning("Session expired. Please log in again.")
-        logout()
+# ----------- Chat Display -----------
+st.markdown(f"### Chat between `{username}` and `{chat_partner}`")
 
-if st.session_state.logged_in:
-    main_app()
-else:
-    menu = st.radio("Navigation", ["Login", "Register"])
-    if menu == "Register":
-        register_page()
-    else:
-        login_page()
+for msg in chat_data[key][-50:]:
+    sender = msg["sender"]
+    time = msg["time"]
+    content = msg["message"]
+
+    if sender != username:
+        content = translate_text(content, user_lang_code)
+
+    align = "right" if sender == username else "left"
+    st.markdown(f"<p style='text-align:{align};'><b>{sender} [{time}]</b>: {content}</p>", unsafe_allow_html=True)
+
+    audio = generate_tts(content, user_lang_code)
+    if audio:
+        st.audio(audio, format="audio/mp3")
+
+# ----------- Chat Input -----------
+with st.form("chat_form", clear_on_submit=True):
+    message = st.text_area("Type your message...", height=100)
+    send = st.form_submit_button("Send")
+    if send and message.strip():
+        chat_data[key].append({
+            "sender": username,
+            "message": message.strip(),
+            "time": datetime.now().strftime("%H:%M")
+        })
+        save_chat(chat_data)
+        st.experimental_rerun()
+
+# ----------- Logout Option -----------
+if st.sidebar.button("Leave Chat"):
+    del st.session_state.username
+    st.experimental_rerun()
